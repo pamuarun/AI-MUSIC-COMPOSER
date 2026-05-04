@@ -97,7 +97,7 @@ Before you begin, ensure you have the following installed:
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/your-username/AI-Music-Composer.git
+   git clone https://github.com/pamuarun/AI-MUSIC-COMPOSER.git
    cd AI-Music-Composer
    ```
 
