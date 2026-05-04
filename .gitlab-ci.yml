@@ -1,14 +1,18 @@
+# Use Docker image (includes docker CLI)
 image: docker:24.0.5
 
+# Start Docker daemon
 services:
   - name: docker:24.0.5-dind
     command: ["--tls=false"]
 
+# Pipeline stages
 stages:
   - checkout
   - build
   - deploy
 
+# Global variables
 variables:
   PROJECT_ID: "mlops-new-495013"
   REGION: "us-central1"
@@ -16,49 +20,69 @@ variables:
   REGISTRY: "us-central1-docker.pkg.dev"
   CLUSTER: "llmops"
 
+  # Docker connection settings
   DOCKER_HOST: tcp://docker:2375/
   DOCKER_TLS_CERTDIR: ""
 
+# Runs before every job
 before_script:
+  # Install required tools
   - apk add --no-cache curl bash python3 py3-pip
 
-  # Install gcloud
+  # Fix: gcloud expects 'python' (not python3)
+  - ln -s /usr/bin/python3 /usr/bin/python
+
+  # Install Google Cloud SDK
   - curl -sSL https://sdk.cloud.google.com | bash
+
+  # Add gcloud to PATH
   - export PATH="$PATH:$HOME/google-cloud-sdk/bin"
 
-  # Authenticate
+  # Authenticate using service account key
   - echo "$GCP_SA_KEY" | base64 -d > gcp-key.json
   - gcloud auth activate-service-account --key-file=gcp-key.json
+
+  # Configure Docker for Artifact Registry
   - gcloud auth configure-docker $REGISTRY --quiet
 
+# Dummy checkout stage
 checkout_code:
   stage: checkout
   script:
     - echo "Code Checked out.."
 
+# Build and push Docker image
 build_docker_image:
   stage: build
   script:
     - docker build -t $REGISTRY/$PROJECT_ID/$REPO/llmops-app:latest .
     - docker push $REGISTRY/$PROJECT_ID/$REPO/llmops-app:latest
 
+# Deploy to GKE
 deploy_to_gke:
   stage: deploy
   before_script:
-    - apk add --no-cache curl bash
+    # Install tools
+    - apk add --no-cache curl bash python3
+
+    # Fix python for gcloud
+    - ln -s /usr/bin/python3 /usr/bin/python
 
     # Install kubectl
     - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
     - install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
-    # Install gcloud
+    # Install Google Cloud SDK
     - curl -sSL https://sdk.cloud.google.com | bash
     - export PATH="$PATH:$HOME/google-cloud-sdk/bin"
 
-    # Authenticate
+    # Authenticate again (new container)
     - echo "$GCP_SA_KEY" | base64 -d > gcp-key.json
     - gcloud auth activate-service-account --key-file=gcp-key.json
+
+    # Connect to GKE cluster
     - gcloud container clusters get-credentials $CLUSTER --region $REGION --project $PROJECT_ID
 
   script:
+    # Apply Kubernetes deployment
     - kubectl apply -f kubernetes-deployment.yaml
