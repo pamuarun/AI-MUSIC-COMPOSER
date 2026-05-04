@@ -1,4 +1,8 @@
-image: google/cloud-sdk:latest
+image: docker:24.0.5
+
+services:
+  - name: docker:24.0.5-dind
+    command: ["--tls=false"]
 
 stages:
   - checkout
@@ -12,6 +16,20 @@ variables:
   REGISTRY: "us-central1-docker.pkg.dev"
   CLUSTER: "llmops"
 
+  DOCKER_HOST: tcp://docker:2375/
+  DOCKER_TLS_CERTDIR: ""
+
+before_script:
+  # Install gcloud
+  - apk add --no-cache curl bash python3 py3-pip
+  - curl -sSL https://sdk.cloud.google.com | bash
+  - source $HOME/google-cloud-sdk/path.bash.inc
+
+  # Authenticate
+  - echo "$GCP_SA_KEY" | base64 -d > gcp-key.json
+  - gcloud auth activate-service-account --key-file=gcp-key.json
+  - gcloud auth configure-docker $REGISTRY --quiet
+
 checkout_code:
   stage: checkout
   script:
@@ -19,16 +37,6 @@ checkout_code:
 
 build_docker_image:
   stage: build
-  services:
-    - name: docker:dind
-      command: ["--tls=false"]
-  variables:
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_TLS_CERTDIR: ""
-  before_script:
-    - echo "$GCP_SA_KEY" | base64 -d > gcp-key.json
-    - gcloud auth activate-service-account --key-file=gcp-key.json
-    - gcloud auth configure-docker $REGISTRY
   script:
     - docker build -t $REGISTRY/$PROJECT_ID/$REPO/llmops-app:latest .
     - docker push $REGISTRY/$PROJECT_ID/$REPO/llmops-app:latest
@@ -36,10 +44,19 @@ build_docker_image:
 deploy_to_gke:
   stage: deploy
   before_script:
+    # Install kubectl (needed for deploy stage)
+    - apk add --no-cache curl bash
+    - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    - install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+    # Install gcloud again (new job container)
+    - curl -sSL https://sdk.cloud.google.com | bash
+    - source $HOME/google-cloud-sdk/path.bash.inc
+
+    # Authenticate
     - echo "$GCP_SA_KEY" | base64 -d > gcp-key.json
     - gcloud auth activate-service-account --key-file=gcp-key.json
-    - gcloud auth configure-docker $REGISTRY
-  script:
     - gcloud container clusters get-credentials $CLUSTER --region $REGION --project $PROJECT_ID
-    - kubectl apply -f kubernetes-deployment.yaml
 
+  script:
+    - kubectl apply -f kubernetes-deployment.yaml
