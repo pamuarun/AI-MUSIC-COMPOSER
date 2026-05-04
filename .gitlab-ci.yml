@@ -29,8 +29,8 @@ before_script:
   # Install required tools
   - apk add --no-cache curl bash python3 py3-pip
 
-  # Fix: gcloud expects 'python' (not python3)
-  - ln -s /usr/bin/python3 /usr/bin/python
+  # Fix: gcloud expects 'python' (force overwrite to avoid error)
+  - ln -sf /usr/bin/python3 /usr/bin/python
 
   # Install Google Cloud SDK
   - curl -sSL https://sdk.cloud.google.com | bash
@@ -65,8 +65,8 @@ deploy_to_gke:
     # Install tools
     - apk add --no-cache curl bash python3
 
-    # Fix python for gcloud
-    - ln -s /usr/bin/python3 /usr/bin/python
+    # Fix python for gcloud (force overwrite)
+    - ln -sf /usr/bin/python3 /usr/bin/python
 
     # Install kubectl
     - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
