@@ -29,7 +29,7 @@ before_script:
   # Install required tools
   - apk add --no-cache curl bash python3 py3-pip
 
-  # Fix: gcloud expects 'python' (force overwrite to avoid error)
+  # Fix: gcloud expects 'python'
   - ln -sf /usr/bin/python3 /usr/bin/python
 
   # Install Google Cloud SDK
@@ -65,7 +65,7 @@ deploy_to_gke:
     # Install tools
     - apk add --no-cache curl bash python3
 
-    # Fix python for gcloud (force overwrite)
+    # Fix python for gcloud
     - ln -sf /usr/bin/python3 /usr/bin/python
 
     # Install kubectl
@@ -75,6 +75,10 @@ deploy_to_gke:
     # Install Google Cloud SDK
     - curl -sSL https://sdk.cloud.google.com | bash
     - export PATH="$PATH:$HOME/google-cloud-sdk/bin"
+
+    # 🔥 FIX: Install GKE auth plugin
+    - gcloud components install gke-gcloud-auth-plugin --quiet
+    - export USE_GKE_GCLOUD_AUTH_PLUGIN=True
 
     # Authenticate again (new container)
     - echo "$GCP_SA_KEY" | base64 -d > gcp-key.json
